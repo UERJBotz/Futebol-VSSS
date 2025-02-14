@@ -61,12 +61,24 @@ void setup() {
     Serial.printf("MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
                   mac_addr[0], mac_addr[1], mac_addr[2],
                   mac_addr[3], mac_addr[4], mac_addr[5]);
-    Serial.printf("ID: %d", ID);
+    Serial.printf("ID: %d\n", ID);
 
     esp_now_register_recv_cb(esp_now_recv_cb_t(on_recv));
+
+    Serial.printf("Bateria em %dmV", batt());
+    bipe(200); delay(200); bipe(200);
 }
 
 void loop() {
+    auto bat = batt(); //mV
+    if (bat < 7000) {
+        Serial.printf("[ALERTA]: Pouca bateria: %dmV\n", bat);
+
+    	bipe(200); delay(200);
+    	bipe(200); delay(200);
+    	bipe(400); delay(200);
+    }
+
     static struct vel prev{0}, vel{0};
 
     vel = vels.of[ID];
