@@ -17,24 +17,28 @@ VEL_MAX: Final[int] = 100 #%
 N_ROBÔS: Final[int] = 3
 
 DIST_BLOCO:   Final[int]   = 100 #mm
+TAM_BLOCO:    Final[int]   = DIST_BLOCO
 FATOR_MATRIZ: Final[float] = 1/DIST_BLOCO
 
 
 ## funções utilitárias
-def clamp[Num](val: Num, MIN: Num, MAX: Num) -> Num:
+type Num = int | float
+type Vec = tuple[Num, Num]
+
+def clamp(val: Num, MIN: Num, MAX: Num) -> Num:
     return min(MAX, max(MIN, val))
 
-def dist[Num](a: tuple[Num,Num], b: tuple[Num,Num]) -> float:
+def dist(a: Vec, b: Vec) -> float:
     x0, y0 = a; x1, y1 = b
     return ((x0-x1)**2 + (y0-y1)**2)**0.5
 
 def none(obj: object | None) -> TypeIs[None]:
     return obj is None
-def some(obj: object | None) -> TypeIs[object]: #! bool? ver abaixo
-    return not none(obj) #! checar se ainda inclui None (pq object)
+def some(obj: object | None) -> bool:
+    return not none(obj) #! ainda inclui None, não entendi ainda pq
 
 def complex_to_tuple(pos: complex) -> tuple:
-    return pos.real, pos.imag
+    return float(pos.real), float(pos.imag)
 
 def complex_to_xy(cp: complex):
     return np.array([cp.real, cp.imag], np.int32)
