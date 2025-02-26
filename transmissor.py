@@ -1,5 +1,6 @@
 #!.venv/bin/python3
 
+from typing import Sequence
 from serial import Serial
 from time   import sleep, time
 
@@ -17,7 +18,7 @@ def inicializar(porta: str="/dev/ttyUSB0", taxa: int=115200):
     else:                   return True
 
 
-def converter(pacote: list[int]) -> str:
+def converter(pacote: Sequence[int]) -> bytes:
     msg = ' '.join(map(str,pacote)) + '\n'
     return msg.encode()
 
@@ -27,7 +28,7 @@ def mover(motor_esq: int, motor_dir: int, *, robô: int, agora=False):
     
     if agora: enviar()
 
-def enviar(velocidades: list[int] = envio):
+def enviar(velocidades: Sequence[int] = envio):
     envio[:] = velocidades[:]
     master.write(converter(envio))
 
