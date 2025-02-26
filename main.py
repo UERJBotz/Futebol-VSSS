@@ -2,7 +2,7 @@
 
 from time  import sleep
 from astar import B, G, L, astar as planejar
-from visão import vision_conf, vision_info, bot_info, vision as visão
+from visão import vision_conf, vision_info, bot_info, ball_info, vision as visão
 from enum  import Enum
 from queue import Queue
 from comum import *
@@ -76,7 +76,7 @@ GRADE_INICIAL = np.array([ # 13lin x 17col
     [B, L, L, L, L, L, L, L, L, L, L, L, L, L, L, L, B]
 ])
   
-def coords(robô: bot_info): #! usar info_campo/2 [...]?
+def coords(robô: bot_info | ball_info): #! usar info_campo/2 [...]?
     x, y = complex_to_tuple(robô.pos)
     return (x + 850, -(y - 650)) #! ver se ainda tem que fazer isso
 
@@ -140,7 +140,7 @@ def main(arg_time: str, desenhar: bool):
             elif tecla == teclado.ESC:
                 print("Saindo..."); raise KeyboardInterrupt
             else:
-                print(f"letra: {tecla.encode()}, {ord(tecla)}")
+                print(f"letra: {tecla.encode():!r}, {ord(tecla)}")
     
         if not frames.empty():
             frame = frames.get()
