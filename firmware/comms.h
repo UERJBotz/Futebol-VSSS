@@ -1,9 +1,12 @@
 #ifdef ESP32
-    #include <WiFi.h>
-    #include <esp_now.h>
+  #include <WiFi.h>
+  #include <esp_now.h>
 #else
-    #include <ESP8266WiFi.h>
-    #include <esp_now.h>
+  #include <ESP8266WiFi.h>
+  #include <espnow.h>
+  #define esp_err_t int
+  #define wifi_mode_t WiFiMode_t
+  #define ESP_OK 0
 #endif
 
 #define BAUD_RATE 115200
@@ -16,8 +19,11 @@ typedef struct packet {
 
 void init_wifi(wifi_mode_t mode=WIFI_STA) {
     WiFi.mode(mode);
+  #ifdef ESP32
     WiFi.STA.begin();
-
+  #else
+    WiFi.begin();
+  #endif
     esp_err_t err = esp_now_init();
     assert (err == ESP_OK);
 }
