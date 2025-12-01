@@ -4,7 +4,7 @@ from math  import pi, tau, sin, cos
 from cmath import phase
 from time  import time
 
-from typing import Final, Generator
+from typing import Final, Annotated, Generator
 from comum  import *
 
 import transmissor
@@ -14,6 +14,8 @@ import transmissor
 type posf = tuple[float, float]
 type posi = tuple[int, int]
 type vel  = tuple[int, int]
+
+type movimento = tuple[float, vel]
 
 
 ## modelagem do robô
@@ -40,7 +42,7 @@ ang_para_vel   = lambda vel,  dang: (-vel, vel) if dang < 0 else \
 
 
 ## "controle" atual
-def movedor(robô: Final[int]) -> Generator: #! tipo melhor
+def movedor(robô: Annotated[int, "const"]) -> Generator: #! tipo melhor
     t_ini:  float = time()
     espera: float = 0
     vels:   vel   = (0, 0)
@@ -54,6 +56,8 @@ def movedor(robô: Final[int]) -> Generator: #! tipo melhor
             t_ini = time()
             espera, vels = params
 
+def aplica_mov(mov, movim: movimento):
+    return mov.send(movim)
 def terminou_mov(mov):
     return mov.send(None)
 def espera_mov(mov):
@@ -61,27 +65,46 @@ def espera_mov(mov):
 
 def vel_para_freq(vel): return _freq*vel/VEL_MAX
 
-def girar_por(mov, vel: int, tempo: float):
-    mov.send(tempo, ang_para_vel(vel, ang))
-def girar(mov, vel: int, ang: float):
-    freq = vel_para_freq(vel)
-    mov.send((ang_para_tempo(freq, ang), ang_para_vel(vel, ang)))
+def faz_mover(f):
+    #@wraps(f) #!import
+    def enviando(mov, *args, **kwargs):
+        movim = f(mov, *args, **kwargs)
+        if some(mov): aplica_mov(mov, movim)
+        return movim
+    return enviando
 
+@faz_mover
+def girar_por(mov, vel: int, *, tempo: float):
+    return (tempo, (vel, -vel))
+@faz_mover
+def girar(mov, vel: int, *, ang: float):
+    freq = vel_para_freq(vel)
+    return (ang_para_tempo(freq, ang), ang_para_vel(vel, ang))
+    #! vel = vel if ang > 0 else -vel
+    #! return (mov, vel, tempo=ang_para_tempo(freq, ang))
+
+@faz_mover
 def avançar_por(mov, vel: int, *, tempo: float):
-    mov.send((tempo, (vel, vel)))
+    return (tempo, (vel, vel))
+@faz_mover
 def avançar_dist(mov, vel: int, *, dist: float):
     freq = vel_para_freq(vel)
-    avançar_por(mov, vel, tempo=dist_para_tempo(freq, dist))
-def avançar_um_bloco(mov, vel: int):
-    avançar_dist(mov, vel, TAM_BLOCO)
+    return avançar_por(mov, vel, tempo=dist_para_tempo(freq, dist))
+@faz_mover
+def avançar_bloco(mov, vel: int, *, num: int=1):
+    return avançar_dist(mov, vel, dist=TAM_BLOCO*num)
+
+@faz_mover
+def parar(mov, tempo=0):
+    return (tempo, (0,0))
 
 
 ## pid (não usado ainda, adaptado do controle_luis
-I_MAX = 300
+I_MAX: Final = 300.
 def inicializar_pid(vel_fixa: int, *, kp: float, ki: float, kd: float,
                     VEL_MAX: int=VEL_MAX, I_MAX: float=I_MAX,
-                    EPSILON: float=0.1): #! tipos (gerador)
-    I = err_ang_ant = 0
+                    EPSILON: float=.1): #! tipos (gerador)
+    I = err_ang_ant = 0.
     t_ant = time()
 
     def pid(atual: posf, alvo: posf, orientação: float, v=vel_fixa) -> vel:
@@ -110,16 +133,16 @@ def inicializar_pid(vel_fixa: int, *, kp: float, ki: float, kd: float,
         dv = P + I + D
         vr = clamp(v - dv, -VEL_MAX, VEL_MAX)
         vl = clamp(v + dv, -VEL_MAX, VEL_MAX)
-        vels = vl, vr
+        vels = int(vl), int(vr)
 
         return (0,0) if dist((0,0), vels) < EPSILON else vels
     
-    def corrotina(): #! tipos (gerador)
+    def corrotina(func): #! tipos (gerador)
         args = yield
         while True:
-            args = yield pid(*args)
+            args = yield func(*args)
 
-    return corrotina()
+    return corrotina(pid)
 
 ## para testes de pid (antigo)
 def diferencial(original: posf, orientação: float,
@@ -128,6 +151,7 @@ def diferencial(original: posf, orientação: float,
     theta = orientação
     x, y  = original
 
+    R = _diam/2 #! checar se era pra ser o raio mesmo
     w = (1/R)*(vels[0]-vels[1])
     v = 0.5*(vels[0]+vels[1])
 
@@ -143,13 +167,14 @@ def simular_diferencial(inicial: posf, alvo: posf, orientação: float):
     import matplotlib.pyplot as plt
     dt = 0.02
 
+    vel = VEL_MAX//2
     x,  y  = inicial
     xs, ys = [x], [y]
 
-    pid = inicializar_pid(VEL_MAX//2, kp=0.1, ki=0.2, kd=0.5)
+    pid = inicializar_pid(vel, kp=0.1, ki=0.2, kd=0.5)
     for i in range(100):
         vels = pid((x, y), alvo, orientação)
-        (x, y), orientação = diferencial(posição, orientação, vels, dt)
+        (x, y), orientação = diferencial((x,y), orientação, vels, dt)
 
         xs.append(x)
         ys.append(y)
@@ -161,17 +186,19 @@ def simular_diferencial(inicial: posf, alvo: posf, orientação: float):
 
 ## para testes de pid (adaptado do luis)
 def simular(alvo: posf, tempo=2.0, N=1000, E=1):
-    import matplotlib.pyplot as plt
-    
+    import matplotlib.pyplot as plt #type: ignore
+
     dt = tempo / N
 
     xs, ys = [0.0], [0.0]
     thetas = [0.0]
 
+    x_set, y_set = alvo
+
     speed = VEL_MAX//2
     l = 10 #! ?
 
-    bot = inicializar_pid(vel, 500.0, 0, 0)
+    bot = inicializar_pid(VEL_MAX//2, kp=500.0, ki=0, kd=0)
     for i in range(N):
         vl, vr = bot.send(((xs[i],ys[i]), alvo, thetas[i]))
         w = (vr - vl) / l
@@ -181,7 +208,7 @@ def simular(alvo: posf, tempo=2.0, N=1000, E=1):
 
         if (abs(complex(x_set - xs[i + 1], y_set - ys[i + 1])) < E): break
 
-    plt.plot(x, y)
+    plt.plot(xs, ys)
     plt.show()
 
 
